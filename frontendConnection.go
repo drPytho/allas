@@ -337,7 +337,6 @@ func (c *FrontendConnection) Listen(channel string) error {
 	if err != nil && err != notifydispatcher.ErrChannelAlreadyActive {
 		return err
 	}
-	MetricListensExecuted.Inc()
 	return nil
 }
 
@@ -348,7 +347,6 @@ func (c *FrontendConnection) Unlisten(channel string) error {
 	if err != nil && err != notifydispatcher.ErrChannelNotActive {
 		return err
 	}
-	MetricUnlistensExecuted.Inc()
 	return nil
 }
 
@@ -636,9 +634,6 @@ func (c *FrontendConnection) setSessionError(err error) {
 }
 
 func (c *FrontendConnection) mainLoop(startupParameters map[string]string, dbcfg VirtualDatabaseConfiguration) {
-	MetricClientConnections.Inc()
-	defer MetricClientConnections.Dec()
-
 	if !c.startup(startupParameters, dbcfg) {
 		return
 	}
@@ -650,7 +645,6 @@ mainLoop:
 		select {
 		case n := <-c.notify:
 			if len(c.notify) >= cap(c.notify)-1 {
-				MetricSlowClientsTerminated.Inc()
 				c.fatal(errClientCouldNotKeepUp)
 				break mainLoop
 			}
@@ -659,7 +653,6 @@ mainLoop:
 				c.setSessionError(err)
 				break mainLoop
 			}
-			MetricNotificationsDispatched.Inc()
 		case _ = <-c.connStatusNotifier:
 			c.fatal(errLostServerConnection)
 			break mainLoop
@@ -707,7 +700,6 @@ mainLoop:
 		if err != nil {
 			elog.Warningf("could not unlisten: %s\n", err)
 		}
-		MetricUnlistensExecuted.Inc()
 	}
 	c.listenChannels = nil
 }
