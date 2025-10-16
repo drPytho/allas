@@ -1,21 +1,21 @@
 package main
 
 import (
-	fbbuf "github.com/uhoh-itsmaciek/femebe/buf"
-	fbcore "github.com/uhoh-itsmaciek/femebe/core"
-	fbproto "github.com/uhoh-itsmaciek/femebe/proto"
-
-	"github.com/johto/notifyutils/notifydispatcher"
-	"github.com/lib/pq"
-
-	"bytes"
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+
+	fbbuf "github.com/uhoh-itsmaciek/femebe/buf"
+	fbcore "github.com/uhoh-itsmaciek/femebe/core"
+	fbproto "github.com/uhoh-itsmaciek/femebe/proto"
+
+	"github.com/johto/notifyutils/notifydispatcher"
+	"github.com/lib/pq"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 // QueryResult + Sync (yes/no)
 type queryResultSync struct {
 	Result QueryResult
-	Sync bool
+	Sync   bool
 }
 
 type frontendConnectionIO struct {
@@ -37,18 +37,22 @@ type frontendConnectionIO struct {
 	// Writing is buffered to avoid superfluous system calls
 	io.Writer
 
-	c net.Conn
+	c    net.Conn
 	bufw *bufio.Writer
 }
+
 func (fcio *frontendConnectionIO) Read(p []byte) (n int, err error) {
 	return fcio.c.Read(p)
 }
+
 func (fcio *frontendConnectionIO) Write(p []byte) (n int, err error) {
 	return fcio.bufw.Write(p)
 }
+
 func (fcio *frontendConnectionIO) Flush() error {
 	return fcio.bufw.Flush()
 }
+
 func (fcio *frontendConnectionIO) Close() error {
 	return fcio.c.Close()
 }
@@ -98,7 +102,7 @@ func (c FrontendConnection) String() string {
 
 func NewFrontendConnection(c net.Conn, dispatcher *notifydispatcher.NotifyDispatcher, connStatusNotifier chan struct{}) *FrontendConnection {
 	io := &frontendConnectionIO{
-		c: c,
+		c:    c,
 		bufw: bufio.NewWriterSize(c, 128),
 	}
 
@@ -680,7 +684,7 @@ mainLoop:
 
 	_ = c.stream.Close()
 	// wait for queryProcessingMainLoop to finish
-	for _ = range c.queryResultCh {
+	for range c.queryResultCh {
 	}
 
 	// Done with this client.  Log the error if necessary.

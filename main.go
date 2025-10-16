@@ -13,13 +13,13 @@ import (
 // Implements a wrapper for pq.Listener for use between the PostgreSQL server
 // and NotifyDispatcher.  Here we pass the notifications on to the dispatcher.
 type pqListenerWrapper struct {
-	l *pq.Listener
+	l  *pq.Listener
 	ch chan *pq.Notification
 }
 
 func newPqListenerWrapper(l *pq.Listener) (*pqListenerWrapper, error) {
 	w := &pqListenerWrapper{
-		l: l,
+		l:  l,
 		ch: make(chan *pq.Notification, 4),
 	}
 
@@ -49,14 +49,14 @@ func (w *pqListenerWrapper) NotificationChannel() <-chan *pq.Notification {
 
 // runs in its own goroutine
 func listenerPinger(listener *pq.Listener) {
-   for {
-	   time.Sleep(60 * time.Second)
-	   _ = listener.Ping()
-   }
+	for {
+		time.Sleep(60 * time.Second)
+		_ = listener.Ping()
+	}
 }
 
 func printUsage() {
-    fmt.Fprintf(os.Stderr, `Usage:
+	fmt.Fprintf(os.Stderr, `Usage:
   %s [--help] configfile
 
 Options:

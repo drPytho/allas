@@ -67,6 +67,7 @@ func NewErrorResponse(sqlstate, errorMessage string) QueryResult {
 // that's handled by Sync/Flush messages specifically.
 
 type parseComplete struct{}
+
 func (qr parseComplete) Respond(f Frontend) error {
 	var message fbcore.Message
 	message.InitFromBytes(fbproto.MsgParseComplete1, []byte{})
@@ -77,6 +78,7 @@ func NewParseComplete() QueryResult {
 }
 
 type bindComplete struct{}
+
 func (qr bindComplete) Respond(f Frontend) error {
 	var message fbcore.Message
 	message.InitFromBytes(fbproto.MsgBindComplete2, []byte{})
@@ -87,6 +89,7 @@ func NewBindComplete() QueryResult {
 }
 
 type noData struct{}
+
 func (qr noData) Respond(f Frontend) error {
 	var message fbcore.Message
 	message.InitFromBytes(fbproto.MsgNoDataN, []byte{})
@@ -98,6 +101,7 @@ func NewNoData() QueryResult {
 
 // Used in response to a Sync
 type nopResponder struct{}
+
 func (qr nopResponder) Respond(f Frontend) error {
 	return nil
 }
@@ -181,7 +185,6 @@ func NewEmptyQuery() FrontendQuery {
 	return emptyQuery{}
 }
 
-
 // Returns true if the passed-in description (i.e. result of
 // FrontendQuery.Describe) is a RowDescription.  See
 // FrontendConnection.queryProcessingMainLoop.
@@ -208,7 +211,7 @@ func (d trivialSelectResultDescription) Respond(f Frontend) error {
 	return f.WriteMessage(&msg)
 }
 
-type trivialSelectResult struct {}
+type trivialSelectResult struct{}
 
 func (r trivialSelectResult) Respond(f Frontend) error {
 	var msg fbcore.Message

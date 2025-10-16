@@ -1,12 +1,12 @@
 package main
 
 import (
-	fbcore "github.com/uhoh-itsmaciek/femebe/core"
-
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+
+	fbcore "github.com/uhoh-itsmaciek/femebe/core"
 )
 
 type Frontend interface {

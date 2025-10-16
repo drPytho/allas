@@ -14,18 +14,18 @@ type config struct {
 	ClientConnInfo string
 
 	StartupParameters map[string]string
-	Databases VirtualDatabaseConfiguration
+	Databases         VirtualDatabaseConfiguration
 }
 
 var Config = config{
 	// These are the defaults
 
-	Listen:	ListenConfig{6433, "localhost", true},
+	Listen: ListenConfig{6433, "localhost", true},
 
 	ClientConnInfo: "host=localhost port=5432 sslmode=disable",
 
 	StartupParameters: nil,
-	Databases: nil,
+	Databases:         nil,
 }
 
 func readIntValue(dst *int, val interface{}, option string) error {
@@ -91,11 +91,11 @@ func readListenSection(c *ListenConfig, val interface{}, option string) error {
 
 		switch key {
 		case "port":
-			err = readIntValue(&c.Port, value, option + ".port")
+			err = readIntValue(&c.Port, value, option+".port")
 		case "host":
-			err = readTextValue(&c.Host, value, option + ".host")
+			err = readTextValue(&c.Host, value, option+".host")
 		case "keepalive":
-			err = readBooleanValue(&c.KeepAlive, value, option + ".keepalive")
+			err = readBooleanValue(&c.KeepAlive, value, option+".keepalive")
 		default:
 			err = fmt.Errorf("unrecognized configuration option %q", option+"."+key)
 		}

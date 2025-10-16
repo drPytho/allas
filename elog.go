@@ -56,42 +56,55 @@ func (l *Logger) Print(severity LogSeverity, output string) {
 	default:
 	}
 }
+
 func (l *Logger) Printf(severity LogSeverity, format string, v ...interface{}) {
 	l.Print(severity, fmt.Sprintf(format, v...))
 }
+
 func (l *Logger) Debug(output string) {
 	l.Print(DEBUG, output)
 }
+
 func (l *Logger) Debugf(format string, v ...interface{}) {
 	l.Printf(DEBUG, format, v...)
 }
+
 func (l *Logger) Log(output string) {
 	l.Print(LOG, output)
 }
+
 func (l *Logger) Logf(format string, v ...interface{}) {
 	l.Printf(LOG, format, v...)
 }
+
 func (l *Logger) Warning(output string) {
 	l.Print(WARNING, output)
 }
+
 func (l *Logger) Warningf(format string, v ...interface{}) {
 	l.Printf(WARNING, format, v...)
 }
+
 func (l *Logger) Error(output string) {
 	l.Print(ERROR, output)
 }
+
 func (l *Logger) Errorf(format string, v ...interface{}) {
 	l.Printf(ERROR, format, v...)
 }
+
 func (l *Logger) Fatal(output string) {
 	l.Print(FATAL, output)
 }
+
 func (l *Logger) Fatalf(format string, v ...interface{}) {
 	l.Printf(FATAL, format, v...)
 }
+
 func (l *Logger) Panic(output string) {
 	l.Print(PANIC, output)
 }
+
 func (l *Logger) Panicf(format string, v ...interface{}) {
 	l.Printf(PANIC, format, v...)
 }

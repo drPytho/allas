@@ -29,7 +29,7 @@ func (lc ListenConfig) Listen() (net.Listener, error) {
 		// files or directories, for example.
 		fi, err = os.Stat(lc.Host)
 		if err == nil {
-			if fi.Mode() & os.ModeSocket > 0 {
+			if fi.Mode()&os.ModeSocket > 0 {
 				_ = os.Remove(lc.Host)
 			} else {
 				return nil, fmt.Errorf("file %q already exists and is not a UNIX socket", lc.Host)
