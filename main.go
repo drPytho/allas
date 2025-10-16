@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/johto/notifyutils/notifydispatcher"
-	"github.com/lib/pq"
-
-	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/johto/notifyutils/notifydispatcher"
+	"github.com/lib/pq"
+	"go.uber.org/zap"
 )
 
 // Implements a wrapper for pq.Listener for use between the PostgreSQL server
@@ -55,38 +56,18 @@ func listenerPinger(listener *pq.Listener) {
 	}
 }
 
-func printUsage() {
-	fmt.Fprintf(os.Stderr, `Usage:
-  %s [--help] configfile
-
-Options:
-  --help                display this help and exit
-`, os.Args[0])
-}
-
 func main() {
-	InitErrorLog(os.Stderr)
-
-	if len(os.Args) != 2 {
-		printUsage()
-		os.Exit(1)
-	} else if os.Args[1] == "--help" {
-		printUsage()
-		os.Exit(1)
-	}
-
-	err := readConfigFile(os.Args[1])
+	logger, err := zap.NewDevelopment()
 	if err != nil {
-		elog.Fatalf("error while reading configuration file: %s", err)
+		log.Fatal(err)
 	}
-	if len(Config.Databases) == 0 {
-		elog.Fatalf("at least one database must be configured")
-	}
+	defer logger.Sync()
 
-	l, err := Config.Listen.Listen()
+	cfg, err := LoadConfig()
 	if err != nil {
-		elog.Fatalf("could not open listen socket: %s", err)
+		panic(err)
 	}
+	logger.Info("starting with config", zap.Any("config", cfg))
 
 	var m sync.Mutex
 	var connStatusNotifier chan struct{}
@@ -94,37 +75,38 @@ func main() {
 	listenerStateChange := func(ev pq.ListenerEventType, err error) {
 		switch ev {
 		case pq.ListenerEventConnectionAttemptFailed:
-			elog.Warningf("Listener: could not connect to the database: %s", err.Error())
+			logger.Warn("Listener: could not connect to the database", zap.Error(err))
 
 		case pq.ListenerEventDisconnected:
-			elog.Warningf("Listener: lost connection to the database: %s", err.Error())
+			logger.Warn("Listener: lost connection to the database", zap.Error(err))
 			m.Lock()
+			defer m.Unlock()
 			close(connStatusNotifier)
 			connStatusNotifier = nil
-			m.Unlock()
 
 		case pq.ListenerEventReconnected,
 			pq.ListenerEventConnected:
-			elog.Logf("Listener: connected to the database")
+			logger.Info("Listener: connected to the database")
 			m.Lock()
+			defer m.Unlock()
 			connStatusNotifier = make(chan struct{})
-			m.Unlock()
 		}
 	}
 
 	// make sure pq.Listener doesn't pick up any env variables
+	// TODO: WhY=??
 	os.Clearenv()
 
-	clientConnectionString := fmt.Sprintf("fallback_application_name=allas %s", Config.ClientConnInfo)
 	listener := pq.NewListener(
-		clientConnectionString,
+		cfg.DatabaseAddr,
 		250*time.Millisecond, 3*time.Second,
 		listenerStateChange,
 	)
 	listenerWrapper, err := newPqListenerWrapper(listener)
 	if err != nil {
-		elog.Fatalf("%s", err)
+		logger.Fatal("Could not create a pq listenerWrapper", zap.Error(err))
 	}
+
 	nd := notifydispatcher.NewNotifyDispatcher(listenerWrapper)
 	nd.SetBroadcastOnConnectionLoss(false)
 	nd.SetSlowReaderEliminationStrategy(notifydispatcher.NeglectSlowReaders)
@@ -133,27 +115,6 @@ func main() {
 	// workaround for PostgreSQL BUG #14830.
 	go listenerPinger(listener)
 
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			panic(err)
-		}
-
-		Config.Listen.MaybeEnableKeepAlive(c)
-
-		var myConnStatusNotifier chan struct{}
-
-		m.Lock()
-		if connStatusNotifier == nil {
-			m.Unlock()
-			go RejectFrontendConnection(c)
-			continue
-		} else {
-			myConnStatusNotifier = connStatusNotifier
-		}
-		m.Unlock()
-
-		newConn := NewFrontendConnection(c, nd, myConnStatusNotifier)
-		go newConn.mainLoop(Config.StartupParameters, Config.Databases)
-	}
+	fc := NewServerEvent(logger, cfg, nd)
+	fc.serve()
 }
