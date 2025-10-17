@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,7 +15,7 @@ import (
 
 var errClientCouldNotKeepUp = errors.New("client could not keep up")
 
-type FrontendConnection struct {
+type EventServer struct {
 	// immutable
 	logger *zap.Logger
 	cfg    *Config
@@ -31,8 +32,8 @@ type FrontendConnection struct {
 	err  error
 }
 
-func NewServerEvent(logger *zap.Logger, cfg *Config, dispatcher *notifydispatcher.NotifyDispatcher) *FrontendConnection {
-	fc := &FrontendConnection{
+func NewEventServer(logger *zap.Logger, cfg *Config, dispatcher *notifydispatcher.NotifyDispatcher) *EventServer {
+	fc := &EventServer{
 		logger:     logger,
 		cfg:        cfg,
 		dispatcher: dispatcher,
@@ -40,7 +41,7 @@ func NewServerEvent(logger *zap.Logger, cfg *Config, dispatcher *notifydispatche
 	return fc
 }
 
-func (c *FrontendConnection) serve() {
+func (c *EventServer) serve() {
 	http.HandleFunc("/events", c.eventsHandler)
 	c.logger.Info("Start listening...", zap.String("addr", c.cfg.BindAddr))
 	http.ListenAndServe(c.cfg.BindAddr, nil)
@@ -51,7 +52,7 @@ type SubscriptionMessage struct {
 	Payload string `json:"payload"`
 }
 
-func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Request) {
+func (c *EventServer) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	c.logger.Info("got a connection")
 	channelsParam := r.URL.Query().Get("channels")
 	channels := strings.Split(channelsParam, ",")
@@ -66,21 +67,21 @@ func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Reques
 
 	defer c.logger.Info("Client disconnected")
 
-	ch := make(chan *pq.Notification, 256)
+	notifications := make(chan *pq.Notification, 256)
 	// Clean up whitespace
 	for i := range channels {
 		channel := strings.TrimSpace(channels[i])
-		if err := c.dispatcher.Listen(channel, ch); err != nil {
-			panic(err)
+		if err := c.dispatcher.Listen(channel, notifications); err != nil {
+			c.logger.Error("could not listen to channel", zap.String("channel", channel), zap.Error(err))
+			return
 		}
-		defer c.dispatcher.Unlisten(channel, ch)
+		defer c.dispatcher.Unlisten(channel, notifications)
 	}
-	encoder := json.NewEncoder(w)
 
 	// Simulate sending events (you can replace this with real data)
-	for n := range ch {
-		if len(ch) >= cap(ch)-1 {
-			c.logger.Error("Clinet could not keep up", zap.Error(errClientCouldNotKeepUp))
+	for n := range notifications {
+		if len(notifications) >= cap(notifications)-1 {
+			c.logger.Error("Client could not keep up", zap.Error(errClientCouldNotKeepUp))
 			return
 		}
 
@@ -88,15 +89,29 @@ func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Reques
 			c.logger.Info("lost connection, but we're fine now!")
 			continue
 		}
-		c.logger.Info("sendign message")
+		c.logger.Info("sending message", zap.Any("msg", n))
 		sm := SubscriptionMessage{
 			Channel: n.Channel,
 			Payload: n.Extra,
 		}
 
-		encoder.Encode(sm)
-
 		// do something with notification
-		w.(http.Flusher).Flush()
+		if err := sendEvent(w, sm); err != nil {
+			c.logger.Error("Could not marshal payload", zap.Error(err))
+		}
+
 	}
+}
+
+func sendEvent(w http.ResponseWriter, sm SubscriptionMessage) error {
+	defer w.(http.Flusher).Flush()
+
+	jsonData, err := json.Marshal(sm)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", jsonData); err != nil {
+		return err
+	}
+	return nil
 }

@@ -88,6 +88,6 @@ func main() {
 	nd.SetBroadcastOnConnectionLoss(false)
 	nd.SetSlowReaderEliminationStrategy(notifydispatcher.NeglectSlowReaders)
 
-	fc := NewServerEvent(logger, cfg, nd)
+	fc := NewEventServer(logger, cfg, nd)
 	fc.serve()
 }
