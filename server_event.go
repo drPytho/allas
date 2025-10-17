@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,11 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errGracefulTermination  = errors.New("graceful termination")
-	errClientCouldNotKeepUp = errors.New("client could not keep up")
-	errLostServerConnection = errors.New("lost server connection")
-)
+var errClientCouldNotKeepUp = errors.New("client could not keep up")
 
 type FrontendConnection struct {
 	// immutable
@@ -50,6 +46,11 @@ func (c *FrontendConnection) serve() {
 	http.ListenAndServe(c.cfg.BindAddr, nil)
 }
 
+type SubscriptionMessage struct {
+	Channel string `json:"channel"`
+	Payload string `json:"payload"`
+}
+
 func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	c.logger.Info("got a connection")
 	channelsParam := r.URL.Query().Get("channels")
@@ -74,6 +75,7 @@ func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Reques
 		}
 		defer c.dispatcher.Unlisten(channel, ch)
 	}
+	encoder := json.NewEncoder(w)
 
 	// Simulate sending events (you can replace this with real data)
 	for n := range ch {
@@ -87,9 +89,14 @@ func (c *FrontendConnection) eventsHandler(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		c.logger.Info("sendign message")
+		sm := SubscriptionMessage{
+			Channel: n.Channel,
+			Payload: n.Extra,
+		}
+
+		encoder.Encode(sm)
 
 		// do something with notification
-		fmt.Fprintf(w, "data: %s\n\n", fmt.Sprintf("Event %d", n.Extra))
 		w.(http.Flusher).Flush()
 	}
 }
