@@ -14,26 +14,15 @@ import (
 // Implements a wrapper for pq.Listener for use between the PostgreSQL server
 // and NotifyDispatcher.  Here we pass the notifications on to the dispatcher.
 type pqListenerWrapper struct {
-	l  *pq.Listener
-	ch chan *pq.Notification
+	l *pq.Listener
 }
 
-func newPqListenerWrapper(l *pq.Listener) (*pqListenerWrapper, error) {
+func newPqListenerWrapper(l *pq.Listener) *pqListenerWrapper {
 	w := &pqListenerWrapper{
-		l:  l,
-		ch: make(chan *pq.Notification, 4),
+		l: l,
 	}
 
-	go w.workerGoroutine()
-	return w, nil
-}
-
-func (w *pqListenerWrapper) workerGoroutine() {
-	input := w.l.NotificationChannel()
-	for {
-		m := <-input
-		w.ch <- m
-	}
+	return w
 }
 
 func (w *pqListenerWrapper) Listen(channel string) error {
@@ -45,15 +34,7 @@ func (w *pqListenerWrapper) Unlisten(channel string) error {
 }
 
 func (w *pqListenerWrapper) NotificationChannel() <-chan *pq.Notification {
-	return w.ch
-}
-
-// runs in its own goroutine
-func listenerPinger(listener *pq.Listener) {
-	for {
-		time.Sleep(60 * time.Second)
-		_ = listener.Ping()
-	}
+	return w.l.NotificationChannel()
 }
 
 func main() {
@@ -102,18 +83,10 @@ func main() {
 		250*time.Millisecond, 3*time.Second,
 		listenerStateChange,
 	)
-	listenerWrapper, err := newPqListenerWrapper(listener)
-	if err != nil {
-		logger.Fatal("Could not create a pq listenerWrapper", zap.Error(err))
-	}
 
-	nd := notifydispatcher.NewNotifyDispatcher(listenerWrapper)
+	nd := notifydispatcher.NewNotifyDispatcher(listener)
 	nd.SetBroadcastOnConnectionLoss(false)
 	nd.SetSlowReaderEliminationStrategy(notifydispatcher.NeglectSlowReaders)
-
-	// We don't strictly speaking need to be pinging the server; this is a
-	// workaround for PostgreSQL BUG #14830.
-	go listenerPinger(listener)
 
 	fc := NewServerEvent(logger, cfg, nd)
 	fc.serve()
